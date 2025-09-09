@@ -4,16 +4,17 @@ import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Product, ProductCreate, ProductUpdate } from '../models/product.model';
 import { ProductService } from '../services/product.service';
+import { CartService } from '../services/cart.service';
 import { ProductDialogComponent } from './product-dialog.component';
 import { EditProductDialogComponent } from './edit-product-dialog.component';
 import { ProductDetailDialogComponent } from './product-detail-dialog.component';
 import { DeleteProductDialogComponent } from './delete-product-dialog.component';
 
 @Component({
-    selector: 'app-product-list',
-    standalone: true,
-    imports: [CommonModule, RouterModule, FormsModule, ProductDialogComponent, EditProductDialogComponent, ProductDetailDialogComponent, DeleteProductDialogComponent],
-    template: `
+  selector: 'app-product-list',
+  standalone: true,
+  imports: [CommonModule, RouterModule, FormsModule, ProductDialogComponent, EditProductDialogComponent, ProductDetailDialogComponent, DeleteProductDialogComponent],
+  template: `
     <div class="max-w-7xl mx-auto px-4 py-8">
       <!-- Header -->
       <h1 class="text-xl font-normal text-foreground mb-6">Product Management</h1>
@@ -76,7 +77,21 @@ import { DeleteProductDialogComponent } from './delete-product-dialog.component'
           <!-- Price and Stock Row -->
           <div class="flex justify-between items-center mb-4">
             <span class="text-sm font-medium text-primary">\${{ product.price }}</span>
-            <span class="text-xs text-muted-foreground">Stock: {{ product.stock }}</span>
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-muted-foreground">Stock: {{ product.stock }}</span>
+              <!-- Add to Cart Button -->
+              <button 
+                (click)="addToCart(product)"
+                [disabled]="product.stock === 0"
+                [class.opacity-50]="product.stock === 0"
+                [class.cursor-not-allowed]="product.stock === 0"
+                class="w-6 h-6 flex items-center justify-center bg-primary text-white rounded hover:bg-primary/90 transition-colors disabled:hover:bg-primary">
+                <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+              </button>
+            </div>
           </div>
           
           <!-- Action Buttons -->
@@ -171,136 +186,162 @@ import { DeleteProductDialogComponent } from './delete-product-dialog.component'
   `
 })
 export class ProductListComponent implements OnInit {
-    products: Product[] = [];
-    filteredProducts: Product[] = [];
-    loading = true;
-    error = '';
-    searchQuery = '';
-    isDialogOpen = false;
-    isEditDialogOpen = false;
-    isDetailDialogOpen = false;
-    isDeleteDialogOpen = false;
-    selectedProduct: Product | null = null;
-    selectedProductForDetail: Product | null = null;
-    selectedProductForDelete: Product | null = null;
+  products: Product[] = [];
+  filteredProducts: Product[] = [];
+  loading = true;
+  error = '';
+  searchQuery = '';
+  isDialogOpen = false;
+  isEditDialogOpen = false;
+  isDetailDialogOpen = false;
+  isDeleteDialogOpen = false;
+  selectedProduct: Product | null = null;
+  selectedProductForDetail: Product | null = null;
+  selectedProductForDelete: Product | null = null;
 
-    constructor(private productService: ProductService) { }
+  constructor(
+    private productService: ProductService,
+    private cartService: CartService
+  ) { }
 
-    ngOnInit(): void {
-        this.loadProducts();
+  ngOnInit(): void {
+    this.loadProducts();
+  }
+
+  loadProducts(): void {
+    this.loading = true;
+    this.error = '';
+
+    this.productService.getProducts().subscribe({
+      next: (products) => {
+        this.products = products;
+        this.filteredProducts = [...products];
+        this.loading = false;
+      },
+      error: (error) => {
+        this.error = 'Failed to load products. Please try again.';
+        this.loading = false;
+        console.error('Error loading products:', error);
+      }
+    });
+  }
+
+  filterProducts(): void {
+    if (!this.searchQuery.trim()) {
+      this.filteredProducts = [...this.products];
+      return;
     }
 
-    loadProducts(): void {
-        this.loading = true;
-        this.error = '';
+    const query = this.searchQuery.toLowerCase();
+    this.filteredProducts = this.products.filter(product =>
+      product.name.toLowerCase().includes(query) ||
+      (product.description && product.description.toLowerCase().includes(query))
+    );
+  }
 
-        this.productService.getProducts().subscribe({
-            next: (products) => {
-                this.products = products;
-                this.filteredProducts = [...products];
-                this.loading = false;
-            },
-            error: (error) => {
-                this.error = 'Failed to load products. Please try again.';
-                this.loading = false;
-                console.error('Error loading products:', error);
-            }
-        });
+  clearSearch(): void {
+    this.searchQuery = '';
+    this.filteredProducts = [...this.products];
+  }
+
+  openDeleteProductDialog(product: Product): void {
+    this.selectedProductForDelete = product;
+    this.isDeleteDialogOpen = true;
+  }
+
+  closeDeleteProductDialog(): void {
+    this.isDeleteDialogOpen = false;
+    this.selectedProductForDelete = null;
+  }
+
+  confirmDeleteProduct(product: Product): void {
+    this.productService.deleteProduct(product.id).subscribe({
+      next: () => {
+        this.loadProducts(); // Reload the list
+        this.closeDeleteProductDialog();
+      },
+      error: (error) => {
+        this.error = 'Failed to delete product. Please try again.';
+        console.error('Error deleting product:', error);
+        this.closeDeleteProductDialog();
+      }
+    });
+  }
+
+  openAddProductDialog(): void {
+    this.isDialogOpen = true;
+  }
+
+  closeAddProductDialog(): void {
+    this.isDialogOpen = false;
+  }
+
+  createProduct(productData: ProductCreate): void {
+    this.productService.createProduct(productData).subscribe({
+      next: (newProduct) => {
+        this.loadProducts(); // Reload the list to show the new product
+        this.closeAddProductDialog();
+      },
+      error: (error) => {
+        this.error = 'Failed to create product. Please try again.';
+        console.error('Error creating product:', error);
+      }
+    });
+  }
+
+  openEditProductDialog(product: Product): void {
+    this.selectedProduct = product;
+    this.isEditDialogOpen = true;
+  }
+
+  closeEditProductDialog(): void {
+    this.isEditDialogOpen = false;
+    this.selectedProduct = null;
+  }
+
+  updateProduct(event: { id: number; data: ProductUpdate }): void {
+    this.productService.updateProduct(event.id, event.data).subscribe({
+      next: (updatedProduct) => {
+        this.loadProducts(); // Reload the list to show the updated product
+        this.closeEditProductDialog();
+      },
+      error: (error) => {
+        this.error = 'Failed to update product. Please try again.';
+        console.error('Error updating product:', error);
+      }
+    });
+  }
+
+  openProductDetailDialog(product: Product): void {
+    this.selectedProductForDetail = product;
+    this.isDetailDialogOpen = true;
+  }
+
+  closeProductDetailDialog(): void {
+    this.isDetailDialogOpen = false;
+    this.selectedProductForDetail = null;
+  }
+
+  addToCart(product: Product): void {
+    if (product.stock === 0) {
+      this.error = 'Product is out of stock';
+      return;
     }
 
-    filterProducts(): void {
-        if (!this.searchQuery.trim()) {
-            this.filteredProducts = [...this.products];
-            return;
-        }
+    const cartItem = {
+      product_id: product.id,
+      quantity: 1
+    };
 
-        const query = this.searchQuery.toLowerCase();
-        this.filteredProducts = this.products.filter(product =>
-            product.name.toLowerCase().includes(query) ||
-            (product.description && product.description.toLowerCase().includes(query))
-        );
-    }
-
-    clearSearch(): void {
-        this.searchQuery = '';
-        this.filteredProducts = [...this.products];
-    }
-
-    openDeleteProductDialog(product: Product): void {
-        this.selectedProductForDelete = product;
-        this.isDeleteDialogOpen = true;
-    }
-
-    closeDeleteProductDialog(): void {
-        this.isDeleteDialogOpen = false;
-        this.selectedProductForDelete = null;
-    }
-
-    confirmDeleteProduct(product: Product): void {
-        this.productService.deleteProduct(product.id).subscribe({
-            next: () => {
-                this.loadProducts(); // Reload the list
-                this.closeDeleteProductDialog();
-            },
-            error: (error) => {
-                this.error = 'Failed to delete product. Please try again.';
-                console.error('Error deleting product:', error);
-                this.closeDeleteProductDialog();
-            }
-        });
-    }
-
-    openAddProductDialog(): void {
-        this.isDialogOpen = true;
-    }
-
-    closeAddProductDialog(): void {
-        this.isDialogOpen = false;
-    }
-
-    createProduct(productData: ProductCreate): void {
-        this.productService.createProduct(productData).subscribe({
-            next: (newProduct) => {
-                this.loadProducts(); // Reload the list to show the new product
-                this.closeAddProductDialog();
-            },
-            error: (error) => {
-                this.error = 'Failed to create product. Please try again.';
-                console.error('Error creating product:', error);
-            }
-        });
-    }
-
-    openEditProductDialog(product: Product): void {
-        this.selectedProduct = product;
-        this.isEditDialogOpen = true;
-    }
-
-    closeEditProductDialog(): void {
-        this.isEditDialogOpen = false;
-        this.selectedProduct = null;
-    }
-
-    updateProduct(event: { id: number; data: ProductUpdate }): void {
-        this.productService.updateProduct(event.id, event.data).subscribe({
-            next: (updatedProduct) => {
-                this.loadProducts(); // Reload the list to show the updated product
-                this.closeEditProductDialog();
-            },
-            error: (error) => {
-                this.error = 'Failed to update product. Please try again.';
-                console.error('Error updating product:', error);
-            }
-        });
-    }
-
-    openProductDetailDialog(product: Product): void {
-        this.selectedProductForDetail = product;
-        this.isDetailDialogOpen = true;
-    }
-
-    closeProductDetailDialog(): void {
-        this.isDetailDialogOpen = false;
-        this.selectedProductForDetail = null;
-    }
+    this.cartService.addToCart(cartItem).subscribe({
+      next: () => {
+        // Success - the cart service will handle updating the cart
+        this.error = ''; // Clear any previous errors
+      },
+      error: (error) => {
+        this.error = error || 'Failed to add item to cart';
+        console.error('Error adding to cart:', error);
+      }
+    });
+  }
 }

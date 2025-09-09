@@ -1,0 +1,8 @@
+README.md
+pyproject.toml
+src/kt-fancy-pack/__init__.py
+src/kt-fancy-pack/core.py
+src/kt_fancy_pack.egg-info/PKG-INFO
+src/kt_fancy_pack.egg-info/SOURCES.txt
+src/kt_fancy_pack.egg-info/dependency_links.txt
+src/kt_fancy_pack.egg-info/top_level.txt

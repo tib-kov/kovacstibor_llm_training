@@ -19,3 +19,15 @@ export interface ProductUpdate {
     description?: string | null;
     stock?: number;
 }
+
+export interface CartItem {
+    id: number;
+    product_id: number;
+    quantity: number;
+    product: Product;
+}
+
+export interface CartItemAdd {
+    product_id: number;
+    quantity: number;
+}
